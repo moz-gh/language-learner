@@ -1,0 +1,20 @@
+{
+  "name": "language-learner",
+  "version": "1.0.0",
+  "description": "Simple, LLM powered terminal script to help learn language",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx src/app.ts",
+    "dev": "tsx watch src/app.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "formulaic-node": "^0.2.10",
+    "typescript": "^5.7.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.6",
+    "tsx": "^4.19.2"
+  }
+}
