@@ -3,13 +3,13 @@ import { stdin as input, stdout as output } from 'process';
 import { loadConfig, saveConfig } from './config/configManager';
 import { loadLearned, saveLearned } from './dataManager';
 import { createPhraseFormula, getNewPhrase, gradeTranslation } from './formulaic/formulaicService';
-import { LearnedPhrase } from './types';
+import { LearnedData, Phrase } from './types';
 import { AppConfig } from './config/types';
 import { createInterface } from 'readline/promises';
 
 export class AppController {
     private config!: AppConfig;
-    private learned!: LearnedPhrase[];
+    private learned!: LearnedData;
     private initializedKeywords: string[] = [];
 
     async initialize(): Promise<void> {
@@ -36,6 +36,7 @@ export class AppController {
         ];
 
         console.debug('Initialized important keywords:', this.initializedKeywords);
+        this.addMissingKeywords();
     }
 
     async mainLoop(): Promise<void> {
@@ -54,7 +55,7 @@ export class AppController {
                     break;
                 }
 
-                const grade = await this.finishLesson(userInput, phrase);
+                const grade = await this.finishLesson(userInput, keyword, phrase);
 
                 if (grade.correct) {
                     console.log('Correct! Moving to the next lesson.');
@@ -69,34 +70,48 @@ export class AppController {
 
     async startLesson(): Promise<{ keyword: string; phrase: string }> {
         const keyword = this.getNextKeyword();
-        console.debug('Using keyword for grounding:', keyword);
+        if (!keyword) {
+            console.log('No unlearned keywords remaining. Congratulations!');
+            process.exit(0);
+        }
 
         const phrase = await getNewPhrase(this.config.apiKey, this.config.formulaId, {
             ...this.config,
             keyword
         });
 
-        if (phrase) {
-            this.storeNewKeyword(keyword, phrase);
-            this.notifyUser(phrase, keyword);
-            return { keyword, phrase };
-        } else {
-            console.error('Failed to generate a new phrase. Retrying...');
-            return await this.startLesson();
+        if (!phrase) {
+            console.error(`Failed to generate a new phrase for keyword: ${keyword}`);
+            return await this.startLesson(); // Retry with a new keyword
         }
+
+        this.storeGeneratedPhrase(keyword, phrase);
+
+        console.log(`Keyword: ${keyword}`);
+        console.log(`Phrase: ${phrase}`);
+        return { keyword, phrase };
     }
 
-    async finishLesson(userInput: string, correctPhrase: string): Promise<{ correct: boolean; lesson: string }> {
+    async finishLesson(userInput: string, keyword: string, phrase: string): Promise<{ correct: boolean; lesson: string }> {
         try {
             const grade = await gradeTranslation(this.config.apiKey, this.config.formulaId, {
                 ...this.config,
                 userInput,
-                correctPhrase
+                correctPhrase: phrase
             });
 
-            if (grade.correct) {
-                const last = this.learned[this.learned.length - 1];
-                last.learned = true;
+            const learnedPhrase = this.learned.keywords[keyword].phrases.find(p => p.phrase === phrase);
+            if (learnedPhrase) {
+                learnedPhrase.attempts += 1;
+                if (grade.correct) {
+                    learnedPhrase.learned = true;
+                    learnedPhrase.correct_attempts += 1;
+                    console.log('Correct! Moving to the next lesson.');
+                } else {
+                    console.log(grade.lesson);
+                    console.log('Incorrect. Try again or type "skip" to move on.');
+                }
+                learnedPhrase.last_attempted = new Date().toISOString();
                 saveLearned(this.config.dataFile, this.learned);
             }
 
@@ -117,26 +132,44 @@ export class AppController {
         }
     }
 
-    private getNextKeyword(): string {
-        const unlearnedKeywords = this.initializedKeywords.filter(
-            (kw) => !this.learned.some((lp) => lp.keyword === kw && lp.learned)
-        );
+    private getNextKeyword(): string | null {
+        const unlearnedKeywords = Object.keys(this.learned.keywords).filter((keyword) => {
+            const keywordData = this.learned.keywords[keyword];
+            return (
+                keywordData.phrases.length === 0 || // No phrases yet
+                keywordData.phrases.some((phrase) => !phrase.learned) // At least one phrase unlearned
+            );
+        });
 
-        if (unlearnedKeywords.length > 0) {
-            return unlearnedKeywords[0];
+        return unlearnedKeywords.length > 0 ? unlearnedKeywords[0] : null;
+    }
+
+    private storeGeneratedPhrase(keyword: string, phrase: string): void {
+        if (!this.learned.keywords[keyword]) {
+            this.learned.keywords[keyword] = { phrases: [] };
         }
 
-        return this.learned[Math.floor(Math.random() * this.learned.length)]?.keyword || 'default';
+        const existingPhrase = this.learned.keywords[keyword].phrases.find(p => p.phrase === phrase);
+        if (!existingPhrase) {
+            this.learned.keywords[keyword].phrases.push({
+                phrase,
+                lessons: [`Using ${keyword}`],
+                learned: false,
+                attempts: 0,
+                correct_attempts: 0,
+                last_attempted: null
+            });
+            saveLearned(this.config.dataFile, this.learned);
+        }
     }
 
-    private storeNewKeyword(keyword: string, phrase: string): void {
-        const newEntry: LearnedPhrase = { keyword, phrase, learned: false };
-        this.learned.push(newEntry);
+    private addMissingKeywords(): void {
+        for (const keyword of this.initializedKeywords) {
+            if (!this.learned.keywords[keyword]) {
+                this.learned.keywords[keyword] = { phrases: [] };
+            }
+        }
+
         saveLearned(this.config.dataFile, this.learned);
-    }
-
-    private notifyUser(phrase: string, keyword: string): void {
-        console.log(`New phrase: ${phrase}`);
-        console.log(`Keyword to learn: ${keyword}`);
     }
 }
