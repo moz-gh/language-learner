@@ -1,6 +1,7 @@
+
 import readline from 'readline';
-import { loadConfig, saveConfig } from './config/configManager';
 import { stdin as input, stdout as output } from 'process';
+import { loadConfig, saveConfig } from './config/configManager';
 import { loadLearned, saveLearned } from './dataManager';
 import { createPhraseFormula, getNewPhrase, gradeTranslation } from './formulaic/formulaicService';
 import { LearnedPhrase } from './types';
@@ -35,6 +36,12 @@ export class AppController {
         console.debug('Initialized important keywords:', this.initializedKeywords);
     }
 
+    async mainLoop(): Promise<void> {
+        while (true) {
+            await this.startLesson();
+        }
+    }
+
     async startLesson(): Promise<void> {
         const keyword = this.getNextKeyword();
         console.debug('Using keyword for grounding:', keyword);
@@ -50,15 +57,31 @@ export class AppController {
             this.storeNewKeyword(keyword, phrase);
             this.notifyUser(phrase, keyword);
 
-            // Wait for user input and process the translation
-            const userInput = await this.getUserInput('Please provide your translation: ');
-            await this.finishLesson(userInput);
+            let resolved = false;
+            while (!resolved) {
+                const userInput = await this.getUserInput('Please provide your translation (or type "skip" or just hit enter to move on): ');
+
+                if (userInput.toLowerCase() === 'skip' || userInput.toLowerCase() === '') {
+                    console.log('Skipping this phrase. Moving to the next lesson.');
+                    resolved = true;
+                    continue;
+                }
+
+                const last = this.learned[this.learned.length - 1];
+                const grade = await this.finishLesson(userInput, last);
+
+                if (grade.correct) {
+                    console.log('Correct! Moving to the next lesson.');
+                    resolved = true;
+                } else {
+                    console.log(grade.lesson)
+                    console.log('Incorrect. Try again or type "skip" to move on.');
+                }
+            }
         }
     }
 
-    async finishLesson(userInput: string): Promise<void> {
-        const last = this.learned[this.learned.length - 1];
-
+    async finishLesson(userInput: string, last: LearnedPhrase): Promise<{ correct: boolean; lesson: string }> {
         try {
             const grade = await gradeTranslation(this.config.apiKey, this.config.formulaId, {
                 ...this.config,
@@ -66,13 +89,15 @@ export class AppController {
                 correctPhrase: last.phrase
             });
 
-            console.debug('Grading result:', grade);
-            console.log("Lesson:", grade.lesson)
-            if (grade.correct) last.learned = true;
+            if (grade.correct) {
+                last.learned = true;
+                saveLearned(this.config.dataFile, this.learned);
+            }
 
-            saveLearned(this.config.dataFile, this.learned);
+            return grade;
         } catch (error) {
             console.error('Error grading user input:', error);
+            return { correct: false, lesson: 'Error grading input' };
         }
     }
 
