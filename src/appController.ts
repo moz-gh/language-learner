@@ -1,9 +1,11 @@
 import readline from 'readline';
 import { loadConfig, saveConfig } from './config/configManager';
-import { loadLearned, saveLearned } from './data/dataManager';
+import { stdin as input, stdout as output } from 'process';
+import { loadLearned, saveLearned } from './dataManager';
 import { createPhraseFormula, getNewPhrase, gradeTranslation } from './formulaic/formulaicService';
-import { LearnedPhrase } from './data/types';
+import { LearnedPhrase } from './types';
 import { AppConfig } from './config/types';
+import { createInterface } from 'readline/promises';
 
 export class AppController {
     private config: AppConfig;
@@ -65,7 +67,8 @@ export class AppController {
             });
 
             console.debug('Grading result:', grade);
-            if (grade === 'correct') last.learned = true;
+            console.log("Lesson:", grade.lesson)
+            if (grade.correct) last.learned = true;
 
             saveLearned(this.config.dataFile, this.learned);
         } catch (error) {
@@ -74,17 +77,13 @@ export class AppController {
     }
 
     private async getUserInput(prompt: string): Promise<string> {
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        });
-
-        return new Promise((resolve) => {
-            rl.question(prompt, (answer) => {
-                rl.close();
-                resolve(answer);
-            });
-        });
+        const rl = createInterface({ input, output });
+        try {
+            const answer = await rl.question(prompt);
+            return answer;
+        } finally {
+            rl.close();
+        }
     }
 
     private getNextKeyword(): string {

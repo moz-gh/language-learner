@@ -58,15 +58,31 @@ export async function getNewPhrase(apiKey: string, formulaId: string, config: Ap
     }
 }
 
-export async function gradeTranslation(apiKey: string, formulaId: string, config: AppConfig & { userInput: string; correctPhrase: string }): Promise<string> {
+export async function gradeTranslation(apiKey: string, formulaId: string, config: AppConfig & { userInput: string; correctPhrase: string }): Promise<{ correct: boolean; lesson: string }> {
     const formulaic = new Formulaic(apiKey);
-    const completionMessages = [{
-        role: "user",
-        content: `Grade the translation: "${config.userInput} for the phrase "${config.correctPhrase}"`,
-    }];
+    const completionMessages = [
+        {
+            role: 'system',
+            content: `Grade the translation based on the correctness of the translation.
+            Do not reply with markdown or other formatting. Only reply in pure JSON.
+            The lesson should be informative, and the correctness should be a boolean value.
+            The lesson should be a string explaining the translation and any errors made.
+            
+            Respond with a JSON object containing:
+            {
+                "correct": boolean,
+                "lesson": string
+            }`
+        },
+        {
+            role: 'user',
+            content: `Grade the translation: "${config.userInput}" for the phrase "${config.correctPhrase}"`
+        }
+    ];
     try {
-        const response = await formulaic.createChatCompletion(formulaId, completionData);
-        const grade = response[0]?.result || 'incorrect';
+        const response = await formulaic.createChatCompletion(formulaId, completionMessages);
+        const content = response.chat.messages[response.chat.messages.length - 1].content
+        const grade = JSON.parse(content);
         return grade;
     } catch (error) {
         console.error('Error grading translation:', error);
