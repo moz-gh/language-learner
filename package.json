@@ -10,7 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "formulaic-node": "^0.2.10",
+    "formulaic-node": "^0.2.11",
     "typescript": "^5.7.3"
   },
   "devDependencies": {
