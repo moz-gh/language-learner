@@ -1,4 +1,4 @@
-// src/formulaic/formulaicService.ts
+
 import { FormulaData, Formulaic } from 'formulaic-node';
 import { CompletionData } from './types';
 import { AppConfig } from '../config/types';
@@ -11,15 +11,15 @@ export async function createPhraseFormula(apiKey: string, config: AppConfig): Pr
         variables: [
             { name: 'userLang', value: config.userLang },
             { name: 'targetLang', value: config.targetLang },
-            { name: 'difficulty', value: 'medium' }
+            { name: 'difficulty', value: 'medium' },
+            { name: 'keyword', value: '' }
         ],
-        model: 'gpt-4o-mini', // Adjust the model as needed
+        model: 'gpt-4o-mini',
         prompts: [
             {
-                text: `Generate a {{{difficulty}}} difficulty phrase in {{{targetLang}}} for a {{{userLang}}} speaker, highlighting a keyword if provided.
-            Only provide the phrase in the target language {{{targetLang}}}. 
-            Only provide plain text, no formatting.
-            `,
+                text: `Generate a {{{difficulty}}} difficulty phrase in {{{targetLang}}} for a {{{userLang}}} speaker, grounding it in the keyword "{{{keyword}}}".
+                Only provide the phrase in the target language {{{targetLang}}}. 
+                Only provide plain text, no formatting.`,
             }
         ]
     };
@@ -32,26 +32,44 @@ export async function createPhraseFormula(apiKey: string, config: AppConfig): Pr
     }
 }
 
-export async function getNewPhrase(apiKey: string, formulaId: string, config: AppConfig): Promise<string | null> {
-    const formulaic = new Formulaic(apiKey);
+export async function getNewPhrase(apiKey: string, formulaId: string, config: AppConfig & { keyword?: string }): Promise<string | null> {
+    const formulaic = new Formulaic(apiKey, {
+        debug: true
+    });
     const completionData: CompletionData = {
-        models: ['gpt-4o'], // Adjust the model as needed
+        models: ['gpt-4o'],
         variables: [
             { name: 'userLang', value: config.userLang },
             { name: 'targetLang', value: config.targetLang },
-            { name: 'difficulty', value: 'medium' }
+            { name: 'difficulty', value: 'medium' },
+            { name: 'keyword', value: config.keyword || '' }
         ]
     };
     try {
+        console.debug('Getting new phrase with data:', completionData);
         const response = await formulaic.createCompletion(formulaId, completionData);
-        // log the response for debugging
-        const messages = response[0].chat.messages
-
-        const assistantMessages = messages.filter((message: { role: string; }) => message.role === 'assistant');
+        const messages = response[0].chat.messages;
+        const assistantMessages = messages.filter((message: { role: string }) => message.role === 'assistant');
         const assistantMessage = assistantMessages[assistantMessages.length - 1];
-        return assistantMessage.content // Adjust based on actual response structure
+        return assistantMessage.content;
     } catch (error) {
         console.error('Error fetching new phrase:', error);
         return null;
+    }
+}
+
+export async function gradeTranslation(apiKey: string, formulaId: string, config: AppConfig & { userInput: string; correctPhrase: string }): Promise<string> {
+    const formulaic = new Formulaic(apiKey);
+    const completionMessages = [{
+        role: "user",
+        content: `Grade the translation: "${config.userInput} for the phrase "${config.correctPhrase}"`,
+    }];
+    try {
+        const response = await formulaic.createChatCompletion(formulaId, completionData);
+        const grade = response[0]?.result || 'incorrect';
+        return grade;
+    } catch (error) {
+        console.error('Error grading translation:', error);
+        throw error;
     }
 }

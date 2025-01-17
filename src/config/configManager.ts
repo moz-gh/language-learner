@@ -6,7 +6,10 @@ import { AppConfig } from './types';
 
 const dataDir = path.join(__dirname, '../../data');
 const configPath = path.join(dataDir, 'config.json');
-
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+});
 // Ensure the data directory exists
 if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir);
@@ -55,11 +58,6 @@ export function saveConfig(config: AppConfig): void {
     }
 }
 async function getApiKeyFromUser(): Promise<string> {
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-    });
-
     return new Promise<string>((resolve) => {
         rl.question('Enter your Formulaic API key: ', (apiKey) => {
             if (!apiKey) {
@@ -72,3 +70,15 @@ async function getApiKeyFromUser(): Promise<string> {
     });
 }
 
+async function getTargetLang(): Promise<string> {
+    return new Promise<string>((resolve) => {
+        rl.question('Enter the language you want to learn: ', (targetLang) => {
+            if (!targetLang) {
+                console.error('Target language is required to run the application.');
+                process.exit(1);
+            }
+            rl.close();
+            resolve(targetLang);
+        });
+    });
+}

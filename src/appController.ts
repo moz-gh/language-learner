@@ -1,12 +1,14 @@
+import readline from 'readline';
 import { loadConfig, saveConfig } from './config/configManager';
 import { loadLearned, saveLearned } from './data/dataManager';
-import { createPhraseFormula, getNewPhrase } from './formulaic/formulaicService';
+import { createPhraseFormula, getNewPhrase, gradeTranslation } from './formulaic/formulaicService';
 import { LearnedPhrase } from './data/types';
 import { AppConfig } from './config/types';
 
 export class AppController {
     private config: AppConfig;
     private learned: LearnedPhrase[];
+    private initializedKeywords: string[] = [];
 
     async initialize(): Promise<void> {
         console.debug('Initializing AppController...');
@@ -23,28 +25,78 @@ export class AppController {
             saveConfig(this.config);
             console.debug('New formula created and config saved:', this.config.formulaId);
         }
+
+        this.initializedKeywords = [
+            'hello', 'world', 'language', 'learn', 'food',
+            'water', 'friend', 'family', 'help', 'please'
+        ];
+        console.debug('Initialized important keywords:', this.initializedKeywords);
     }
 
     async startLesson(): Promise<void> {
-        const phrase = await getNewPhrase(this.config.apiKey, this.config.formulaId, this.config);
+        const keyword = this.getNextKeyword();
+        console.debug('Using keyword for grounding:', keyword);
+
+        const phrase = await getNewPhrase(this.config.apiKey, this.config.formulaId, {
+            ...this.config,
+            keyword
+        });
+
         console.debug('New phrase generated:', phrase);
+
         if (phrase) {
-            const keyword = this.extractKeyword(phrase);
             this.storeNewKeyword(keyword, phrase);
             this.notifyUser(phrase, keyword);
+
+            // Wait for user input and process the translation
+            const userInput = await this.getUserInput('Please provide your translation: ');
+            await this.finishLesson(userInput);
         }
     }
 
-    finishLesson(userInput: string): void {
+    async finishLesson(userInput: string): Promise<void> {
         const last = this.learned[this.learned.length - 1];
-        const result = this.gradeUserInput(userInput, last.phrase);
-        if (result === 'correct') last.learned = true;
-        saveLearned(this.config.dataFile, this.learned);
+
+        try {
+            const grade = await gradeTranslation(this.config.apiKey, this.config.formulaId, {
+                ...this.config,
+                userInput,
+                correctPhrase: last.phrase
+            });
+
+            console.debug('Grading result:', grade);
+            if (grade === 'correct') last.learned = true;
+
+            saveLearned(this.config.dataFile, this.learned);
+        } catch (error) {
+            console.error('Error grading user input:', error);
+        }
     }
 
-    private extractKeyword(phrase: string): string {
-        const words = phrase.split(' ');
-        return words.length > 0 ? words[0] : '';
+    private async getUserInput(prompt: string): Promise<string> {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+
+        return new Promise((resolve) => {
+            rl.question(prompt, (answer) => {
+                rl.close();
+                resolve(answer);
+            });
+        });
+    }
+
+    private getNextKeyword(): string {
+        const unlearnedKeywords = this.initializedKeywords.filter(
+            (kw) => !this.learned.some((lp) => lp.keyword === kw && lp.learned)
+        );
+
+        if (unlearnedKeywords.length > 0) {
+            return unlearnedKeywords[0];
+        }
+
+        return this.learned[Math.floor(Math.random() * this.learned.length)]?.keyword || 'default';
     }
 
     private storeNewKeyword(keyword: string, phrase: string): void {
@@ -56,9 +108,5 @@ export class AppController {
     private notifyUser(phrase: string, keyword: string): void {
         console.log(`New phrase: ${phrase}`);
         console.log(`Keyword to learn: ${keyword}`);
-    }
-
-    private gradeUserInput(input: string, correctPhrase: string): 'correct' | 'incorrect' {
-        return input.trim().toLowerCase() === correctPhrase.trim().toLowerCase() ? 'correct' : 'incorrect';
     }
 }
