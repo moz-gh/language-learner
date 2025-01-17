@@ -1,5 +1,4 @@
 
-import readline from 'readline';
 import { stdin as input, stdout as output } from 'process';
 import { loadConfig, saveConfig } from './config/configManager';
 import { loadLearned, saveLearned } from './dataManager';
@@ -9,8 +8,8 @@ import { AppConfig } from './config/types';
 import { createInterface } from 'readline/promises';
 
 export class AppController {
-    private config: AppConfig;
-    private learned: LearnedPhrase[];
+    private config!: AppConfig;
+    private learned!: LearnedPhrase[];
     private initializedKeywords: string[] = [];
 
     async initialize(): Promise<void> {
@@ -30,9 +29,12 @@ export class AppController {
         }
 
         this.initializedKeywords = [
-            'hello', 'world', 'language', 'learn', 'food',
-            'water', 'friend', 'family', 'help', 'please'
+            'yes', 'no', 'thank you', 'please', 'hello',
+            'goodbye', 'how', 'what', 'where', 'why',
+            'food', 'water', 'bathroom', 'help', 'name',
+            'time', 'day', 'friend', 'family', 'money'
         ];
+
         console.debug('Initialized important keywords:', this.initializedKeywords);
     }
 
