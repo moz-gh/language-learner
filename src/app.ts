@@ -1,5 +1,3 @@
-// File Path: /home/gabriel/Code/language-learner/src/app.ts
-
 import { AppController } from './appController';
 import readline from 'readline';
 

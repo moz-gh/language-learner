@@ -1,4 +1,3 @@
-// src/formulaic/types.ts
 export interface Formula {
   name: string;
   description: string;

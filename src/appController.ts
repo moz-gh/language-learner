@@ -38,11 +38,34 @@ export class AppController {
 
     async mainLoop(): Promise<void> {
         while (true) {
-            await this.startLesson();
+            const { keyword, phrase } = await this.startLesson();
+            let resolved = false;
+
+            while (!resolved) {
+                const userInput = await this.getUserInput(
+                    'Please provide your translation (or type "skip" or just hit enter to move on): '
+                );
+
+                if (userInput.toLowerCase() === 'skip' || userInput.trim() === '') {
+                    console.log('Skipping this phrase. Moving to the next lesson.');
+                    resolved = true;
+                    break;
+                }
+
+                const grade = await this.finishLesson(userInput, phrase);
+
+                if (grade.correct) {
+                    console.log('Correct! Moving to the next lesson.');
+                    resolved = true;
+                } else {
+                    console.log(grade.lesson);
+                    console.log('Incorrect. Try again or type "skip" to move on.');
+                }
+            }
         }
     }
 
-    async startLesson(): Promise<void> {
+    async startLesson(): Promise<{ keyword: string; phrase: string }> {
         const keyword = this.getNextKeyword();
         console.debug('Using keyword for grounding:', keyword);
 
@@ -51,45 +74,26 @@ export class AppController {
             keyword
         });
 
-        console.debug('New phrase generated:', phrase);
-
         if (phrase) {
             this.storeNewKeyword(keyword, phrase);
             this.notifyUser(phrase, keyword);
-
-            let resolved = false;
-            while (!resolved) {
-                const userInput = await this.getUserInput('Please provide your translation (or type "skip" or just hit enter to move on): ');
-
-                if (userInput.toLowerCase() === 'skip' || userInput.toLowerCase() === '') {
-                    console.log('Skipping this phrase. Moving to the next lesson.');
-                    resolved = true;
-                    continue;
-                }
-
-                const last = this.learned[this.learned.length - 1];
-                const grade = await this.finishLesson(userInput, last);
-
-                if (grade.correct) {
-                    console.log('Correct! Moving to the next lesson.');
-                    resolved = true;
-                } else {
-                    console.log(grade.lesson)
-                    console.log('Incorrect. Try again or type "skip" to move on.');
-                }
-            }
+            return { keyword, phrase };
+        } else {
+            console.error('Failed to generate a new phrase. Retrying...');
+            return await this.startLesson();
         }
     }
 
-    async finishLesson(userInput: string, last: LearnedPhrase): Promise<{ correct: boolean; lesson: string }> {
+    async finishLesson(userInput: string, correctPhrase: string): Promise<{ correct: boolean; lesson: string }> {
         try {
             const grade = await gradeTranslation(this.config.apiKey, this.config.formulaId, {
                 ...this.config,
                 userInput,
-                correctPhrase: last.phrase
+                correctPhrase
             });
 
             if (grade.correct) {
+                const last = this.learned[this.learned.length - 1];
                 last.learned = true;
                 saveLearned(this.config.dataFile, this.learned);
             }

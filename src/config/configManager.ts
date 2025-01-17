@@ -1,4 +1,3 @@
-// File Path: /home/gabriel/Code/language-learner/src/config/configManager.ts
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
