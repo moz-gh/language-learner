@@ -102,8 +102,8 @@ export class AppController {
       return await this.startLesson();
     }
 
-    console.log(`🔑 Keyword: ${keyword}`);
-    console.log(`📖 Phrase: ${phrase}`);
+    console.log(`Keyword: ${keyword}`);
+    console.log(`Phrase: ${phrase}`);
     return { keyword, phrase };
   }
 
