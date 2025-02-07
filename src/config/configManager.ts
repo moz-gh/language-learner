@@ -1,17 +1,15 @@
 import fs from 'fs';
 import path from 'path';
-import readline from 'readline';
+import os from 'os';
 import { AppConfig } from './types';
 
-const dataDir = path.join(__dirname, '../../data');
+// Use a writable directory outside the snapshot
+const dataDir = path.join(os.homedir(), '.language-learner');
 const configPath = path.join(dataDir, 'config.json');
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-});
+
 // Ensure the data directory exists
 if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir);
+    fs.mkdirSync(dataDir, { recursive: true });
 }
 
 const defaultConfig: AppConfig = {
@@ -34,7 +32,7 @@ export async function loadConfig(): Promise<AppConfig> {
             const data = fs.readFileSync(configPath, 'utf-8');
             config = JSON.parse(data) as AppConfig;
         }
-        console.log("config.apiKey", config.apiKey)
+
         if (!config.apiKey) {
             console.warn('API key not found in config. Prompting user for input...');
             config.apiKey = await getApiKeyFromUser();
@@ -56,28 +54,17 @@ export function saveConfig(config: AppConfig): void {
         throw error;
     }
 }
+
 async function getApiKeyFromUser(): Promise<string> {
     return new Promise<string>((resolve) => {
-        rl.question('Enter your Formulaic API key: ', (apiKey) => {
+        process.stdout.write('Enter your Formulaic API key: ');
+        process.stdin.once('data', (data) => {
+            const apiKey = data.toString().trim();
             if (!apiKey) {
                 console.error('API key is required to run the application.');
                 process.exit(1);
             }
-            rl.close();
             resolve(apiKey);
-        });
-    });
-}
-
-async function getTargetLang(): Promise<string> {
-    return new Promise<string>((resolve) => {
-        rl.question('Enter the language you want to learn: ', (targetLang) => {
-            if (!targetLang) {
-                console.error('Target language is required to run the application.');
-                process.exit(1);
-            }
-            rl.close();
-            resolve(targetLang);
         });
     });
 }

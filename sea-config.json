@@ -1,0 +1,7 @@
+{
+    "main": "./dist/app.js",
+    "output": "./sea-prep.blob",
+    "assets": {
+        "config.json": "./config/config.json"
+    }
+}

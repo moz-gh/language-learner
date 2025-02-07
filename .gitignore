@@ -31,3 +31,5 @@ Thumbs.db
 
 # Ignore the data directory
 data/
+
+dist/

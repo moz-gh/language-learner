@@ -1,11 +1,14 @@
 {
   "name": "language-learner",
   "version": "1.0.0",
-  "description": "Simple, LLM powered terminal script to help learn language",
-  "main": "index.js",
+  "description": "Simple, LLM powered terminal app to help learn languages",
+  "main": "dist/app.js",
+  "bin": "dist/app.js",
   "scripts": {
     "start": "tsx src/app.ts",
-    "dev": "tsx watch src/app.ts"
+    "dev": "tsx watch src/app.ts",
+    "build": "npm run compile && node --experimental-sea-config sea-config.json",
+    "compile": "tsc --outDir dist src/app.ts"
   },
   "author": "",
   "license": "ISC",
@@ -15,6 +18,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.6",
+    "pkg": "^5.8.1",
     "tsx": "^4.19.2"
   }
 }
