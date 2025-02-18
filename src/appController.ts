@@ -38,6 +38,10 @@ export class AppController {
     "money",
   ];
 
+  // Game state: current streak and lives
+  private currentStreak: number = 0;
+  private lives: number = 3; // You can adjust this value for difficulty
+
   // Enable autocomplete for slash commands.
   private rl = createInterface({
     input,
@@ -72,10 +76,18 @@ export class AppController {
   }
 
   async mainLoop(): Promise<void> {
-    while (true) {
+    // Continue the game while the player has lives remaining.
+    while (this.lives > 0) {
       const { keyword, phrase } = await this.startLesson();
 
+      // Inner loop for a single phrase.
       while (true) {
+        // Display current game status.
+        console.log(
+          chalk.blue(
+            `Streak: ${this.currentStreak}    Lives: ${this.getHearts()}`
+          )
+        );
         const userInput = await this.getUserInput("Translation: ");
 
         // Handle slash commands.
@@ -84,6 +96,8 @@ export class AppController {
           switch (command) {
             case "/skip":
               console.log(chalk.yellow("🔄 Skipping this phrase..."));
+              // Reset the streak on skip.
+              this.currentStreak = 0;
               break;
             case "/explain":
               console.log(chalk.blue("💡 Generating explanation..."));
@@ -123,16 +137,31 @@ export class AppController {
               );
               continue;
           }
+          // If /skip was used, break out to the next phrase.
           if (command === "/skip") break;
         }
 
         // Regular translation attempt.
         const grade = await this.finishLesson(userInput, keyword, phrase);
         if (grade.correct) {
-          console.log(chalk.green("✅ Correct! Moving to the next lesson."));
-          break;
+          this.currentStreak++;
+          console.log(
+            chalk.green(
+              `✅ Correct! Streak increased to ${this.currentStreak}.`
+            )
+          );
+          break; // Move on to the next phrase.
         } else {
+          // Penalize the player for an incorrect answer.
+          this.lives--;
+          this.currentStreak = 0;
           console.log(chalk.red(`❌ Incorrect. ${grade.lesson}`));
+          console.log(chalk.red(`Lives remaining: ${this.getHearts()}`));
+          if (this.lives <= 0) {
+            console.log(chalk.red("Game Over! Better luck next time."));
+            process.exit(0);
+          }
+          // Allow the user to try again for the same phrase.
         }
       }
     }
@@ -210,13 +239,29 @@ export class AppController {
     return `${topBorder}\n${content}\n${bottomBorder}`;
   }
 
+  /**
+   * Returns a string of heart symbols representing current lives.
+   */
+  private getHearts(): string {
+    return "❤️".repeat(this.lives);
+  }
+
   private showWelcomeMessage(): void {
-    // Enhanced welcome banner with fixed ASCII art spacing.
+    // Enhanced welcome banner with help text.
     console.log(
-      chalk.green(`
-            ╔══════════════════════════════╗   
-            ║ Welcome to Language Learner! ║ 
-            ╚══════════════════════════════╝`)
+      chalk.green(
+        `
+╔════════════════════════════════════════╗
+║        Welcome to Language Learner!    ║
+║                                        ║
+║  Commands:                             ║
+║    /skip    - Skip current phrase      ║
+║    /explain - Explain the phrase       ║
+║    /help    - Show available commands  ║
+║    /exit    - Exit the application     ║
+╚════════════════════════════════════════╝
+        `
+      )
     );
   }
 }
