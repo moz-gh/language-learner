@@ -109,3 +109,46 @@ export async function gradeTranslation(
     throw error;
   }
 }
+
+export async function explainPhrase(
+  apiKey: string,
+  formulaId: string,
+  config: AppConfig & { phrase: string }
+): Promise<string | null> {
+  const formulaic = new Formulaic(apiKey);
+  const completionMessages = [
+    {
+      role: "system",
+      content: `Provide a visual explanation of the following phrase by breaking it down word-by-word.
+The output should consist of two lines:
+  1. The first line is the original phrase with appropriate spacing between words.
+  2. The second line contains each word's translation enclosed in pipes, aligned under the corresponding word.
+Only provide plain text with no markdown or extra formatting.
+For example:
+  Input: "Еда это не только"
+  Output:
+    Еда      это      не        только
+    |food|  |is|   |not|    |only|`,
+    },
+    {
+      role: "user",
+      content: `Explain the phrase: "${config.phrase}".
+The target language is ${config.targetLang} and the user language is ${config.userLang}.`,
+    },
+  ];
+  try {
+    const response = await formulaic.createChatCompletion(
+      formulaId,
+      completionMessages
+    );
+    const messages = response.chat.messages;
+    const assistantMessages = messages.filter(
+      (message: { role: string }) => message.role === "assistant"
+    );
+    const assistantMessage = assistantMessages[assistantMessages.length - 1];
+    return assistantMessage.content;
+  } catch (error) {
+    console.error("Error explaining phrase:", error);
+    return null;
+  }
+}

@@ -5,6 +5,7 @@ import {
   createPhraseFormula,
   getNewPhrase,
   gradeTranslation,
+  explainPhrase,
 } from "./formulaic/formulaicService";
 import { LearnedData } from "./types";
 import { AppConfig } from "./config/types";
@@ -65,21 +66,74 @@ export class AppController {
 
       while (true) {
         const userInput = await this.getUserInput(
-          'Provide your translation (or type "skip" to get a new phrase): '
+          'Provide your translation (or type "/skip" for a new phrase, "/explain" for an explanation, "/help" for commands, "/exit" to quit): '
         );
 
-        if (userInput.toLowerCase() === "skip") {
-          console.log("🔄 Skipping this phrase. Generating a new one...");
-          break; // Restart loop with a new phrase
+        // Check if the input is a command (commands start with "/")
+        if (userInput.startsWith("/")) {
+          const command = userInput.trim().toLowerCase();
+          switch (command) {
+            case "/skip":
+              console.log("🔄 Skipping this phrase. Generating a new one...");
+              // Break out of the inner loop to start a new lesson
+              break;
+            case "/explain":
+              console.log("💡 Generating explanation...");
+              try {
+                const explanation = await explainPhrase(
+                  this.config.apiKey,
+                  this.config.formulaId,
+                  {
+                    ...this.config,
+                    phrase,
+                  }
+                );
+                if (explanation) {
+                  console.log("\n" + explanation + "\n");
+                } else {
+                  console.log(
+                    "❌ Unable to generate explanation for the phrase."
+                  );
+                }
+              } catch (err) {
+                console.error("❌ Error generating explanation:", err);
+              }
+              // Continue to allow the user to submit a translation
+              continue;
+            case "/help":
+              console.log("Available commands:");
+              console.log(
+                "  /skip     - Skip the current phrase and get a new one."
+              );
+              console.log(
+                "  /explain  - Get a visual breakdown explanation of the phrase."
+              );
+              console.log("  /exit     - Exit the application.");
+              console.log("  /help     - Show this help message.");
+              continue;
+            case "/exit":
+              this.rl.close();
+              return;
+            default:
+              console.log(
+                "Unknown command. Type /help for a list of commands."
+              );
+              continue;
+          }
+          // If we reached here with a recognized command like /skip, break out to the next phrase.
+          if (command === "/skip") break;
         }
 
+        // Regular translation attempt
         const grade = await this.finishLesson(userInput, keyword, phrase);
         if (grade.correct) {
           console.log("✅ Correct! Moving to the next lesson.");
-          break; // Move to next keyword
+          break; // Move to the next keyword
         } else {
           console.log(`❌ Incorrect. ${grade.lesson}`);
-          console.log('Try again or type "skip" to move on.');
+          console.log(
+            'Try again or type a command (e.g., "/skip", "/explain", "/help", "/exit").'
+          );
         }
       }
     }
@@ -104,8 +158,8 @@ export class AppController {
       return await this.startLesson();
     }
 
-    console.log(`Keyword: ${keyword}`);
-    console.log(`Translate the phrase: ${phrase}`);
+    console.log(`\nKeyword: ${keyword}`);
+    console.log(`Translate the phrase: ${phrase}\n`);
     return { keyword, phrase };
   }
 
@@ -150,14 +204,20 @@ export class AppController {
     else greeting = "Good evening";
 
     console.log(`
-  ╔═══════════════════════════════════╗
-  ║  📚 Welcome to Language Learner!  ║
-  ╚═══════════════════════════════════╝
+  ╔════════════════════════════════════════╗
+  ║     📚 Welcome to Language Learner!     ║
+  ╚════════════════════════════════════════╝
   ${greeting}! Ready to improve your language skills? 🌍
-  
-  - You’ll be given a phrase in your target language.
-  - Type your best translation or "skip" to try another phrase.
-  - Let’s get started!
+
+  How to use:
+    - You’ll be given a phrase in your target language.
+    - Type your best translation.
+    - Use commands starting with "/" for extra options:
+         /skip     - Skip the current phrase.
+         /explain  - Get a visual breakdown of the phrase.
+         /help     - List available commands.
+         /exit     - Exit the application.
+  Let's get started!
   `);
   }
 }
