@@ -40,9 +40,7 @@ export async function getNewPhrase(
   formulaId: string,
   config: AppConfig & { keyword?: string }
 ): Promise<string | null> {
-  const formulaic = new Formulaic(apiKey, {
-    debug: true,
-  });
+  const formulaic = new Formulaic(apiKey);
   const completionData: CompletionData = {
     models: ["gpt-4o"],
     variables: [
