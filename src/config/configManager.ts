@@ -8,6 +8,7 @@ const configPath = path.join(dataDir, "config.json");
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
+  terminal: true,
 });
 // Ensure the data directory exists
 if (!fs.existsSync(dataDir)) {

@@ -1,6 +1,6 @@
 import { stdin as input, stdout as output } from "process";
 import { loadConfig, saveConfig } from "./config/configManager";
-import { loadLearned, saveLearned } from "./dataManager";
+import { loadLearned } from "./dataManager";
 import {
   createPhraseFormula,
   getNewPhrase,
@@ -39,12 +39,14 @@ export class AppController {
 
   constructor() {
     this.rl.on("close", () => {
-      console.log("Goodbye!");
+      console.log("Goodbye! Keep learning! 👋");
       process.exit(0);
     });
   }
 
   async initialize(): Promise<void> {
+    this.showWelcomeMessage();
+
     this.config = await loadConfig();
     this.learned = loadLearned(this.config.dataFile);
 
@@ -67,7 +69,7 @@ export class AppController {
         );
 
         if (userInput.toLowerCase() === "skip") {
-          console.log("Skipping this phrase. Generating a new one...");
+          console.log("🔄 Skipping this phrase. Generating a new one...");
           break; // Restart loop with a new phrase
         }
 
@@ -103,7 +105,7 @@ export class AppController {
     }
 
     console.log(`Keyword: ${keyword}`);
-    console.log(`Phrase: ${phrase}`);
+    console.log(`Translate the phrase: ${phrase}`);
     return { keyword, phrase };
   }
 
@@ -137,5 +139,25 @@ export class AppController {
     return this.initializedKeywords[
       Math.floor(Math.random() * this.initializedKeywords.length)
     ];
+  }
+
+  private showWelcomeMessage(): void {
+    const hour = new Date().getHours();
+    let greeting = "Hello";
+
+    if (hour < 12) greeting = "Good morning";
+    else if (hour < 18) greeting = "Good afternoon";
+    else greeting = "Good evening";
+
+    console.log(`
+  ╔═══════════════════════════════════╗
+  ║  📚 Welcome to Language Learner!  ║
+  ╚═══════════════════════════════════╝
+  ${greeting}! Ready to improve your language skills? 🌍
+  
+  - You’ll be given a phrase in your target language.
+  - Type your best translation or "skip" to try another phrase.
+  - Let’s get started!
+  `);
   }
 }
