@@ -10,6 +10,7 @@ import {
 import { LearnedData } from "./types";
 import { AppConfig } from "./config/types";
 import { createInterface } from "readline";
+import chalk from "chalk"; // for colored output
 
 export class AppController {
   private config!: AppConfig;
@@ -36,11 +37,21 @@ export class AppController {
     "family",
     "money",
   ];
-  private rl = createInterface({ input, output });
+
+  // Enable autocomplete for slash commands.
+  private rl = createInterface({
+    input,
+    output,
+    completer: (line: string) => {
+      const commands = ["/skip", "/explain", "/help", "/exit"];
+      const hits = commands.filter((cmd) => cmd.startsWith(line));
+      return [hits.length ? hits : commands, line];
+    },
+  });
 
   constructor() {
     this.rl.on("close", () => {
-      console.log("Goodbye! Keep learning! 👋");
+      console.log(chalk.green("Goodbye! Keep learning! 👋"));
       process.exit(0);
     });
   }
@@ -65,75 +76,63 @@ export class AppController {
       const { keyword, phrase } = await this.startLesson();
 
       while (true) {
-        const userInput = await this.getUserInput(
-          'Provide your translation (or type "/skip" for a new phrase, "/explain" for an explanation, "/help" for commands, "/exit" to quit): '
-        );
+        const userInput = await this.getUserInput("Translation: ");
 
-        // Check if the input is a command (commands start with "/")
+        // Handle slash commands.
         if (userInput.startsWith("/")) {
           const command = userInput.trim().toLowerCase();
           switch (command) {
             case "/skip":
-              console.log("🔄 Skipping this phrase. Generating a new one...");
-              // Break out of the inner loop to start a new lesson
+              console.log(chalk.yellow("🔄 Skipping this phrase..."));
               break;
             case "/explain":
-              console.log("💡 Generating explanation...");
+              console.log(chalk.blue("💡 Generating explanation..."));
               try {
                 const explanation = await explainPhrase(
                   this.config.apiKey,
                   this.config.formulaId,
-                  {
-                    ...this.config,
-                    phrase,
-                  }
+                  { ...this.config, phrase }
                 );
                 if (explanation) {
-                  console.log("\n" + explanation + "\n");
-                } else {
-                  console.log(
-                    "❌ Unable to generate explanation for the phrase."
+                  const boxedExplanation = this.formatBoxedText(
+                    explanation.split("\n")
                   );
+                  console.log("\n" + boxedExplanation + "\n");
+                } else {
+                  console.log(chalk.red("❌ No explanation available."));
                 }
               } catch (err) {
-                console.error("❌ Error generating explanation:", err);
+                console.error(
+                  chalk.red("❌ Error generating explanation:"),
+                  err
+                );
               }
-              // Continue to allow the user to submit a translation
-              continue;
+              continue; // Allow the user to try again.
             case "/help":
-              console.log("Available commands:");
-              console.log(
-                "  /skip     - Skip the current phrase and get a new one."
-              );
-              console.log(
-                "  /explain  - Get a visual breakdown explanation of the phrase."
-              );
-              console.log("  /exit     - Exit the application.");
-              console.log("  /help     - Show this help message.");
+              console.log("Commands:");
+              console.log("  /skip    - Skip the current phrase.");
+              console.log("  /explain - Get a word-by-word explanation.");
+              console.log("  /exit    - Exit the application.");
               continue;
             case "/exit":
               this.rl.close();
               return;
             default:
               console.log(
-                "Unknown command. Type /help for a list of commands."
+                chalk.red("Unknown command. Type /help for commands.")
               );
               continue;
           }
-          // If we reached here with a recognized command like /skip, break out to the next phrase.
           if (command === "/skip") break;
         }
 
-        // Regular translation attempt
+        // Regular translation attempt.
         const grade = await this.finishLesson(userInput, keyword, phrase);
         if (grade.correct) {
-          console.log("✅ Correct! Moving to the next lesson.");
-          break; // Move to the next keyword
+          console.log(chalk.green("✅ Correct! Moving to the next lesson."));
+          break;
         } else {
-          console.log(`❌ Incorrect. ${grade.lesson}`);
-          console.log(
-            'Try again or type a command (e.g., "/skip", "/explain", "/help", "/exit").'
-          );
+          console.log(chalk.red(`❌ Incorrect. ${grade.lesson}`));
         }
       }
     }
@@ -141,25 +140,27 @@ export class AppController {
 
   async startLesson(): Promise<{ keyword: string; phrase: string }> {
     const keyword = this.getRandomKeyword();
-
     const phrase = await getNewPhrase(
       this.config.apiKey,
       this.config.formulaId,
-      {
-        ...this.config,
-        keyword,
-      }
+      { ...this.config, keyword }
     );
 
     if (!phrase) {
       console.error(
-        `⚠️ Failed to generate a phrase for "${keyword}". Retrying...`
+        chalk.red(
+          `⚠️ Failed to generate a phrase for "${keyword}". Retrying...`
+        )
       );
       return await this.startLesson();
     }
 
-    console.log(`\nKeyword: ${keyword}`);
-    console.log(`Translate the phrase: ${phrase}\n`);
+    // Display the keyword and phrase in a simple rectangular box.
+    const boxedText = this.formatBoxedText([
+      `Keyword: ${keyword}`,
+      `Phrase: ${phrase}`,
+    ]);
+    console.log("\n" + boxedText + "\n");
     return { keyword, phrase };
   }
 
@@ -175,7 +176,7 @@ export class AppController {
         correctPhrase: phrase,
       });
     } catch (error) {
-      console.error("❌ Error grading user input:", error);
+      console.error(chalk.red("❌ Error grading user input:"), error);
       return { correct: false, lesson: "Error grading input." };
     }
   }
@@ -183,7 +184,7 @@ export class AppController {
   private async getUserInput(prompt: string): Promise<string> {
     return new Promise((resolve) => {
       this.rl.question(prompt, (answer) => {
-        this.rl.pause(); // Prevents duplicate inputs
+        this.rl.pause();
         resolve(answer.trim());
       });
     });
@@ -195,29 +196,27 @@ export class AppController {
     ];
   }
 
+  /**
+   * Formats an array of lines into a simple rectangular box.
+   */
+  private formatBoxedText(lines: string[]): string {
+    const maxLength = Math.max(...lines.map((line) => line.length));
+    const horizontalBorder = "═".repeat(maxLength + 2);
+    const topBorder = `╔${horizontalBorder}╗`;
+    const bottomBorder = `╚${horizontalBorder}╝`;
+    const content = lines
+      .map((line) => `║ ${line.padEnd(maxLength)} ║`)
+      .join("\n");
+    return `${topBorder}\n${content}\n${bottomBorder}`;
+  }
+
   private showWelcomeMessage(): void {
-    const hour = new Date().getHours();
-    let greeting = "Hello";
-
-    if (hour < 12) greeting = "Good morning";
-    else if (hour < 18) greeting = "Good afternoon";
-    else greeting = "Good evening";
-
-    console.log(`
-  ╔════════════════════════════════════════╗
-  ║     📚 Welcome to Language Learner!     ║
-  ╚════════════════════════════════════════╝
-  ${greeting}! Ready to improve your language skills? 🌍
-
-  How to use:
-    - You’ll be given a phrase in your target language.
-    - Type your best translation.
-    - Use commands starting with "/" for extra options:
-         /skip     - Skip the current phrase.
-         /explain  - Get a visual breakdown of the phrase.
-         /help     - List available commands.
-         /exit     - Exit the application.
-  Let's get started!
-  `);
+    // Enhanced welcome banner with fixed ASCII art spacing.
+    console.log(
+      chalk.green(`
+            ╔══════════════════════════════╗   
+            ║ Welcome to Language Learner! ║ 
+            ╚══════════════════════════════╝`)
+    );
   }
 }
